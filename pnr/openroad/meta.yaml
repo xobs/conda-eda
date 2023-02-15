@@ -13,7 +13,7 @@ source:
       - odb-drt-disable-tests.patch # until tests are added to the recope
       - sta-add-install-options.patch # to enable sta binary distribution
       - gui-find-qt-only-if-enabled.patch # until gui variant is added
-      - disable-mpl2.patch # until or-tools dep is added
+      - disable-mpl2-and-par.patch # until or-tools dep is added
       - boost-set-version.patch # to match host dependencies
   - url: http://lemon.cs.elte.hu/pub/sources/lemon-{{ lemon_version }}.tar.gz
     md5: {{ lemon_md5 }}
