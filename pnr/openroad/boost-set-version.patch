@@ -1,0 +1,13 @@
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 293ea212c..425d1ca4b 100755
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -163,7 +163,7 @@ if (SWIG_VERSION VERSION_GREATER_EQUAL "4.1.0")
+ endif()
+ include(UseSWIG)
+ 
+-find_package(Boost REQUIRED)
++find_package(Boost 1.73 REQUIRED)
+ message(STATUS "boost: ${Boost_VERSION}")
+ find_package(Python3 COMPONENTS Development REQUIRED)
+ option(BUILD_PYTHON "Build the Python3 interface" ON)
