@@ -1,0 +1,104 @@
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 293ea212c..c36bdcc7c 100755
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -168,6 +168,9 @@ message(STATUS "boost: ${Boost_VERSION}")
+ find_package(Python3 COMPONENTS Development REQUIRED)
+ option(BUILD_PYTHON "Build the Python3 interface" ON)
+ 
++option(BUILD_MPL2 "Build MPL2 macro placer" ON)
++option(BUILD_PAR "Build PAR partitioner" ON)
++
+ option(ALLOW_WARNINGS "Flag to allow compilation with compiler warnings: on by default" ON)
+ if (NOT ALLOW_WARNINGS)
+   add_compile_options(
+@@ -250,10 +253,14 @@ add_subdirectory(cts)
+ add_subdirectory(grt)
+ add_subdirectory(tap)
+ add_subdirectory(mpl)
+-add_subdirectory(mpl2)
++if ((NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin") AND BUILD_MPL2)
++  add_subdirectory(mpl2)
++endif()
+ add_subdirectory(rcx)
+ add_subdirectory(psm)
++if (BUILD_PAR)
+ add_subdirectory(par)
++endif()
+ add_subdirectory(ant)
+ add_subdirectory(gui)
+ add_subdirectory(drt)
+@@ -319,7 +326,6 @@ target_link_libraries(openroad
+   mpl
+   psm
+   ant
+-  par
+   upf
+   utl
+   pdn
+@@ -329,12 +335,19 @@ target_link_libraries(openroad
+   ${CMAKE_THREAD_LIBS_INIT}
+ )
+ 
+-if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
++if ((NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin") AND BUILD_MPL2)
+   # mpl2 aborts with link error on darwin so do not link it.
+   target_link_libraries(openroad mpl2)
+   target_compile_definitions(openroad PRIVATE ENABLE_MPL2)
+ else()
+-  message(STATUS "Removing MPL2 to avoid run time fatal error.")
++  message(STATUS "MPL2 macro placer disabled.")
++endif()
++
++if (BUILD_PAR)
++  target_link_libraries(openroad par)
++  target_compile_definitions(openroad PRIVATE ENABLE_PAR)
++else()
++  message(STATUS "PAR partitioner disabled.")
+ endif()
+ 
+ # tclReadline
+diff --git a/src/OpenRoad.cc b/src/OpenRoad.cc
+index 388aa92fa..db320b684 100644
+--- a/src/OpenRoad.cc
++++ b/src/OpenRoad.cc
+@@ -70,7 +70,9 @@
+ #include "odb/lefout.h"
+ #include "ord/InitOpenRoad.hh"
+ #include "pad/MakePad.h"
++#ifdef ENABLE_PAR
+ #include "par/MakePartitionMgr.h"
++#endif
+ #include "pdn/MakePdnGen.hh"
+ #include "ppl/MakeIoplacer.h"
+ #include "psm/MakePDNSim.hh"
+@@ -174,7 +176,9 @@ OpenRoad::~OpenRoad()
+   deleteFinale(finale_);
+   deleteAntennaChecker(antenna_checker_);
+   odb::dbDatabase::destroy(db_);
++#ifdef ENABLE_PAR
+   deletePartitionMgr(partitionMgr_);
++#endif
+   deletePdnGen(pdngen_);
+   deleteDistributed(distributer_);
+   deleteSteinerTreeBuilder(stt_builder_);
+@@ -229,7 +233,9 @@ void OpenRoad::init(Tcl_Interp* tcl_interp)
+   replace_ = makeReplace();
+   pdnsim_ = makePDNSim();
+   antenna_checker_ = makeAntennaChecker();
++#ifdef ENABLE_PAR
+   partitionMgr_ = makePartitionMgr();
++#endif
+   pdngen_ = makePdnGen();
+   distributer_ = makeDistributed();
+   stt_builder_ = makeSteinerTreeBuilder();
+@@ -267,7 +273,9 @@ void OpenRoad::init(Tcl_Interp* tcl_interp)
+   initTritonRoute(this);
+   initPDNSim(this);
+   initAntennaChecker(this);
++#ifdef ENABLE_PAR
+   initPartitionMgr(this);
++#endif
+   initPdnGen(this);
+   initDistributed(this);
+   initSteinerTreeBuilder(this);
