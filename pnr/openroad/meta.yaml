@@ -34,19 +34,22 @@ requirements:
     - make
     - cmake >=3.19
     - swig 4.0.2
+    - tk
     - bison
     - {{ compiler('c') }}
     - {{ compiler('cxx') }}
   host:
     - python
-    - libboost 1.73
+    - libboost 1.81
     - eigen 3.3
-    - spdlog 1.8.1
+    - spdlog 1.9
     - readline
     - tk
     - zlib
     - fmt
-    - libgomp
+    - libgomp                 [not osx]
+    - libprotobuf             [osx]
+    - llvm-openmp             [osx]
   run:
     # missing run_exports
     - {{ pin_compatible('libboost', min_pin='x.x', max_pin='x.x') }}
