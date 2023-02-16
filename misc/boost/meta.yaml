@@ -1,0 +1,255 @@
+{% set version = "1.81.0" %}
+{% set win_vstr = version.replace('.', '_') %}
+{% set win_vstr_mm = "_".join(version.split(".")[:2]) %}
+{% set win_astr = "x32" if win32 else "x64" %}
+{% set from_source_control = 'no' %}
+
+{% set debug_build_system = os.environ.get('CONDA_BUILD_DEBUG_BUILD_SYSTEM', 'no') %}
+
+package:
+  # Short name to avoid filename length issues on Windows.
+  name: bst
+  version: {{ version }}
+
+source:
+{% if from_source_control == 'yes' %}
+  git_url: https://github.com/boostorg/boost.git
+  git_ref: boost-{{ version }}
+{% else %}
+  url: https://boostorg.jfrog.io/artifactory/main/release/{{ version }}/source/boost_{{ version.replace(".", "_") }}.tar.bz2
+  sha256: 71feeed900fbccca04a3b4f2f84a7c217186f28a940ed8b7ed4725986baf99fa
+{% endif %}
+  patches:
+    - 0001-CONDA_BUILD-customization.patch
+    - 0002-boost.python-fix-python-lib-config-abiflags.patch
+    - 0003-boost.python-fix-unix-library-paths-and-darwin-sysroot.patch
+    - 0005-boost.python-add-Library-include-and-lib-on-Win.patch
+    # Fixes compilation with Python 3.10, see also 
+    # https://bugzilla.redhat.com/show_bug.cgi?id=1912903
+    # - 0006-boost.python-py-fopen-private.patch
+    # https://github.com/boostorg/build/pull/642
+    # - 0007-osx-arm64.patch
+
+build:
+  number: 0
+  # script_env:
+  #   - CONDA_BUILD_DEBUG_BUILD_SYSTEM={{ debug_build_system }}
+
+requirements:
+  build:
+    - {{ compiler('c') }}
+    - {{ compiler('cxx') }}
+    # - {{ ccache('symlinks') }}
+{% if from_source_control == 'yes' %}
+    - git
+{% endif %}
+    - patch  # [not win]
+    - m2-patch  # [win]
+    - m2-coreutils  # [win]
+    - m2-gcc-libs  # [win]
+    # - libtool  # [osx]
+  host:
+    - icu  # [unix]
+    - libiconv  # [osx]
+    - bzip2  # [unix]
+    - xz >=5.2.5
+    - zstd >=1.4.5
+    - zlib >=1.2.11
+
+outputs:
+  - name: libboost
+    build:
+      activate_in_script: True
+      script_env:
+        - CONDA_BUILD_DEBUG_BUILD_SYSTEM={{ debug_build_system }}
+      missing_dso_whitelist:
+        - '$RPATH/ld64.so.1'  # [s390x]
+    script: install-libboost.sh   # [unix]
+    script: install-libboost.bat  # [win]
+    requirements:
+      build:
+        - {{ compiler('c') }}
+        - {{ compiler('cxx') }}
+        - {{ ccache('symlinks') }}
+        - m2-coreutils  # [win]
+        - m2-gcc-libs  # [win]
+      host:
+        - icu  # [unix]
+        - libiconv  # [osx]
+        - bzip2  # [unix]
+        - xz >=5.2.5
+        - zstd >=1.4.5
+        - zlib >=1.2.11
+    test:
+      requires:
+        - ripgrep
+        - {{ compiler('cxx') }}
+      files:
+        - tests
+      commands:
+        # Due to a bug introduced in 1.74.0 the following no longer work and so
+        # had to be removed; see https://github.com/boostorg/build/issues/677.
+        # - b2 --help
+        # - bjam --help
+        # - pushd tests
+        # -   pushd hello_world_cxx
+        # -     ./test.sh  # [not win and not (aarch64 or s390x)]
+        # -     test.bat  # [win]
+        # -   popd
+        # - popd
+
+        # Verify Python headers are removed.
+        - "! test -f $PREFIX/include/boost/python.hpp"                      # [unix]
+        - "! test -d $PREFIX/include/boost/python"                          # [unix]
+        - if exist %PREFIX%\Library\include\boost\boost\python.hpp exit 1   # [win]
+        - if exist %PREFIX%\Library\include\boost\python exit 1             # [win]
+
+        # Verify a header exists.
+        - test -f $PREFIX/include/boost/assert.hpp  # [unix]
+        - if not exist %PREFIX%\Library\include\boost\assert.hpp exit 1     # [win]
+
+        # Verify static-only libraries.
+        - test -f $PREFIX/lib/libboost_exception.a                          # [unix]
+        - test -f $PREFIX/lib/libboost_test_exec_monitor.a                  # [unix]
+
+        # Verify libraries.
+        {% set boost_libs = [
+                "atomic",
+                "chrono",
+                "container",
+                "context",
+                "coroutine",
+                "date_time",
+                "filesystem",
+                "graph",
+                "iostreams",
+                "locale",
+                "log",
+                "log_setup",
+                "math_c99",
+                "math_c99f",
+                "math_c99l",
+                "math_tr1",
+                "math_tr1f",
+                "math_tr1l",
+                "prg_exec_monitor",
+                "program_options",
+                "random",
+                "regex",
+                "serialization",
+                "system",
+                "thread",
+                "timer",
+                "type_erasure",
+                "unit_test_framework",
+                "wave",
+                "wserialization"
+        ] %}
+        {% for each_boost_lib in boost_libs %}
+        - test -f $PREFIX/lib/libboost_{{ each_boost_lib }}.a                                                 # [unix]
+        - test -f $PREFIX/lib/libboost_{{ each_boost_lib }}.dylib                                             # [osx]
+        - test -f $PREFIX/lib/libboost_{{ each_boost_lib }}.so                                                # [linux]
+        # .. if we used versioned libs:
+        # - if not exist %PREFIX%\Library\bin\boost_{{ each_boost_lib }}-vc{{ vc }}0-mt-{{ win_astr }}-{{ win_vstr_mm }}.dll exit 1  # [win]
+        # - if not exist %PREFIX%\Library\lib\boost_{{ each_boost_lib }}-vc{{ vc }}0-mt-{{ win_astr }}-{{ win_vstr_mm }}.lib exit 1  # [win]
+        # .. as we do not:
+        - if not exist %PREFIX%\Library\bin\boost_{{ each_boost_lib }}.dll exit 1  # [win]
+        - if not exist %PREFIX%\Library\lib\boost_{{ each_boost_lib }}.lib exit 1  # [win]
+        {% endfor %}
+
+  - name: py-boost
+    script: install-py-boost.sh   # [unix]
+    script: install-py-boost.bat  # [win]
+    build:
+      activate_in_script: True
+      script_env:
+        - CONDA_BUILD_DEBUG_BUILD_SYSTEM={{ debug_build_system }}
+    requirements:
+      build:
+        - {{ compiler('c') }}
+        - {{ compiler('cxx') }}
+        - {{ ccache('symlinks') }}
+        - m2-coreutils  # [win]
+        - m2-gcc-libs  # [win]
+      host:
+        - {{ pin_subpackage('libboost', exact=True) }}
+        - python
+        - numpy
+      run:
+        - {{ pin_subpackage('libboost', exact=True) }}
+        - python
+    test:
+      source_files: libs/python/example/*
+      requires:
+        - {{ compiler('c') }}
+        - {{ compiler('cxx') }}
+        - numpy
+      commands:
+        # verify Python headers
+        - test -f $PREFIX/include/boost/python.hpp                # [unix]
+        - test -d $PREFIX/include/boost/python                    # [unix]
+        - test -f $PREFIX/share/boost-build/src/kernel/site-config.jam  # [unix]
+        - if not exist %PREFIX%\Library\include\boost\python\python.hpp exit 1    # [win]
+        - if not exist %PREFIX%\Library\include\boost\python exit 1        # [win]
+
+        # Verify libraries.
+        {% set py_boost_libs = [
+                "python",
+                "numpy"
+        ] %}
+        {% for each_py_boost_lib in py_boost_libs %}
+        - test -f $PREFIX/lib/libboost_{{ each_py_boost_lib }}.a                                                  # [unix]
+        - test -f $PREFIX/lib/libboost_{{ each_py_boost_lib }}{{ py }}.a                                          # [unix]
+        - test -f $PREFIX/lib/libboost_{{ each_py_boost_lib }}${SHLIB_EXT}                                        # [unix]
+        - test -f $PREFIX/lib/libboost_{{ each_py_boost_lib }}{{ py }}${SHLIB_EXT}                                # [unix]
+        # .. if we used versioned libs:
+        # - if not exist %PREFIX%\Library\bin\boost_{{ each_py_boost_lib }}36-vc{{ vc }}1-mt-{{ win_astr }}-{{ win_vstr_mm }}.dll exit 1  # [win and py==36]
+        # - if not exist %PREFIX%\Library\bin\boost_{{ each_py_boost_lib }}37-vc{{ vc }}1-mt-{{ win_astr }}-{{ win_vstr_mm }}.dll exit 1  # [win and py==37]
+        # - if not exist %PREFIX%\Library\bin\boost_{{ each_py_boost_lib }}38-vc{{ vc }}1-mt-{{ win_astr }}-{{ win_vstr_mm }}.dll exit 1  # [win and py==38]
+        # - if not exist %PREFIX%\Library\lib\boost_{{ each_py_boost_lib }}36-vc{{ vc }}1-mt-{{ win_astr }}-{{ win_vstr_mm }}.lib exit 1  # [win and py==36]
+        # - if not exist %PREFIX%\Library\lib\boost_{{ each_py_boost_lib }}37-vc{{ vc }}1-mt-{{ win_astr }}-{{ win_vstr_mm }}.lib exit 1  # [win and py==37]
+        # - if not exist %PREFIX%\Library\lib\boost_{{ each_py_boost_lib }}38-vc{{ vc }}1-mt-{{ win_astr }}-{{ win_vstr_mm }}.lib exit 1  # [win and py==38]
+        # .. as we do not:
+        - if not exist %PREFIX%\Library\bin\boost_{{ each_py_boost_lib }}{{ py }}.dll exit 1  # [win]
+        - if not exist %PREFIX%\Library\lib\boost_{{ each_py_boost_lib }}{{ py }}.lib exit 1  # [win]
+        {% endfor %}
+
+
+  # Metapackages to mirror conda-forge's name. It is my goal to deprecate
+  # these names and eventually stop providing the packages.
+  # TODO :: Aim to remove these by Oct 10th 2018.
+  - name: boost-cpp
+    requirements:
+      build:
+        - {{ compiler('c') }}
+      run:
+        - {{ pin_subpackage('libboost', exact=True) }}
+
+  - name: boost
+    requirements:
+      host:
+        - python
+      run:
+        - {{ pin_subpackage('libboost', exact=True) }}
+        - {{ pin_subpackage('py-boost', exact=True) }}
+        - python
+
+about:
+  home: https://www.boost.org/
+  license: BSL-1.0
+  license_family: OTHER
+  license_file: LICENSE_1_0.txt
+  summary: Free peer-reviewed portable C++ source libraries.
+  dev_url: https://www.boost.org/doc/libs/{{ win_vstr }}/more/getting_started/index.html
+  doc_url: https://www.boost.org/doc/libs/{{ win_vstr }}/
+
+extra:
+  recipe-maintainers:
+    - ccordoba12
+    - jakirkham
+    - msarahan
+    - ocefpaf
+    - jschueller
+    - scopatz
+    - isuruf
+    - mingwandroid
