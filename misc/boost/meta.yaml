@@ -24,11 +24,6 @@ source:
     - 0002-boost.python-fix-python-lib-config-abiflags.patch
     - 0003-boost.python-fix-unix-library-paths-and-darwin-sysroot.patch
     - 0005-boost.python-add-Library-include-and-lib-on-Win.patch
-    # Fixes compilation with Python 3.10, see also 
-    # https://bugzilla.redhat.com/show_bug.cgi?id=1912903
-    # - 0006-boost.python-py-fopen-private.patch
-    # https://github.com/boostorg/build/pull/642
-    # - 0007-osx-arm64.patch
 
 build:
   number: 0
