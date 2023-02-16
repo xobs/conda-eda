@@ -7,7 +7,20 @@ index 293ea212c..425d1ca4b 100755
  include(UseSWIG)
  
 -find_package(Boost REQUIRED)
-+find_package(Boost 1.73 REQUIRED)
++find_package(Boost 1.81 REQUIRED)
  message(STATUS "boost: ${Boost_VERSION}")
  find_package(Python3 COMPONENTS Development REQUIRED)
  option(BUILD_PYTHON "Build the Python3 interface" ON)
+diff --git a/src/utl/CMakeLists.txt b/src/utl/CMakeLists.txt
+index a795da4d1..db52c9dd4 100644
+--- a/src/utl/CMakeLists.txt
++++ b/src/utl/CMakeLists.txt
+@@ -35,7 +35,7 @@
+
+ include("openroad")
+
+-find_package(Boost 1.78 REQUIRED)
++find_package(Boost 1.81 REQUIRED)
+
+ swig_lib(NAME      utl
+          NAMESPACE utl
